@@ -2,18 +2,42 @@
 // Created by chudonghao on 2022/1/30.
 //
 
+#include <algorithm>
+#include <fstream>
+#include <iomanip>
 #include <iostream>
 #include <map>
 #include <set>
 #include <string>
 #include <vector>
 
-struct ProducerEquation {
+struct Production {
   std::string l;
   std::vector<std::string> r;
 };
 
-std::vector<ProducerEquation> pes = {
+bool operator<(const Production &l, const Production &r) {
+  if (l.l < r.l) {
+    return true;
+  } else if (l.l == r.l) {
+    return l.r < r.r;
+  } else {
+    return false;
+  }
+}
+
+bool operator==(const Production &l, const Production &r) { return l.l == r.l && l.r == r.r; }
+bool operator!=(const Production &l, const Production &r) { return !(l == r); }
+
+std::ostream &operator<<(std::ostream &os, const Production &p) {
+  os << p.l << " ->";
+  for (const auto &r : p.r) {
+    os << " " << r;
+  }
+  return os;
+}
+
+std::vector<Production> ps = {
     {"S", {"e"}},
     {"S", {"Primary", "S"}},
     {"Primary", {"Sentence"}},
@@ -126,7 +150,9 @@ bool is_terminal(const std::string &x) { return !std::isalpha(x[0]) || !std::isu
 int main() {
   std::map<std::string, std::set<std::string>> firsts;
   std::map<std::string, std::set<std::string>> follows;
+  std::map<Production, std::set<std::string>> selects;
 
+  /// 计算所有FIRST集
   size_t count = 0;
   size_t last_count = -1;
   for (; count != last_count;) {
@@ -135,8 +161,8 @@ int main() {
     last_count = count;
     count = 0;
 
-    // 获取所有first集合
-    for (auto &item : pes) {
+    // 更新所有first集合
+    for (auto &item : ps) {
       auto &l = item.l;
       auto &rs = item.r;
       auto &fs = firsts[l];
@@ -152,9 +178,7 @@ int main() {
         } else {
           //
           auto &fs2 = firsts[r];
-          for (const auto &f : fs2) {
-            fs.insert(f);
-          }
+          fs.insert(fs2.begin(), fs2.end());
           break;
         }
       }
@@ -162,14 +186,196 @@ int main() {
     }
   }
 
-  for (const auto &item : firsts) {
-    auto l = item.first;
-    auto &fs = item.second;
-    std::cout << l << ' ';
+  /// 计算所有FOLLOW集
+  count = 0;
+  last_count = -1;
+
+  // 开始符号默认包含结束符号$
+  follows["S"].insert("$");
+
+  for (; count != last_count;) {
+
+    // 重试
+    last_count = count;
+    count = 0;
+
+    // 更新所有follow集合
+    for (auto &item : ps) {
+      auto &l = item.l;
+      auto &rs = item.r;
+
+      // 对每个产生式的右部的每个非终结符，计算其FOLLOW集
+      for (int i = 0; i < rs.size(); ++i) {
+        auto &r = rs[i];
+        // 跳过终结符
+        if (is_terminal(r)) {
+          continue;
+        }
+        auto &fs = follows[r];
+        // 对于非终结符，将其后面的终结符或非终结符的FIRST集加入到FOLLOW集中，
+        // 如果这个非终结符FIRST集包含e（空），则继续看下一个元素，
+        // 如果到后面没有更多元素了，则将左部的FOLLOW集加入到FOLLOW集
+        bool encounter_empty = true;
+        for (int j = i + 1; j <= rs.size() && encounter_empty; ++j) {
+          encounter_empty = false;
+
+          if (j == rs.size()) {
+            auto &fs2 = follows[l];
+            fs.insert(fs2.begin(), fs2.end());
+            break;
+          }
+          auto &f = rs[j];
+          if (is_terminal(f)) {
+            fs.insert(f);
+          } else {
+            auto &fs2 = firsts[f];
+            std::for_each(fs2.begin(), fs2.end(), [&](auto &v) {
+              // 如果FIRST集有空，则移到下一个元素并继续当前过程
+              // 如果不是空，则加入到FOLLOW集中
+              if (v == "e") {
+                encounter_empty = true;
+              } else {
+                fs.insert(v);
+              }
+            });
+          }
+        }
+      }
+    }
+
+    std::for_each(follows.begin(), follows.end(), [&](auto &p) { count += p.second.size(); });
+  }
+
+  /// 计算所有SELECT集
+  for (auto &p : ps) {
+    auto &ss = selects[p];
+    // 计算右部的FIRST集
+    std::set<std::string> fs;
+    auto &rs = p.r;
+    for (const auto &r : rs) {
+      // 如果遇到终结符，则停止计算
+      if (is_terminal(r)) {
+        fs.insert(r);
+        break;
+      }
+      auto fs2 = firsts[r];
+      fs.insert(fs2.begin(), fs2.end());
+      // 如果FIRST集合不包含空，则停止计算
+      if (fs2.count("e") == 0) {
+        break;
+      }
+    }
+
+    // 计算SELECT集
+    if (fs.count("e") == 0) {
+      ss.insert(fs.begin(), fs.end());
+    } else {
+      auto fs2 = follows[p.l];
+      ss.insert(fs.begin(), fs.end());
+      ss.insert(fs2.begin(), fs2.end());
+      ss.erase("e");
+    }
+  }
+
+  /// 打印结果
+  std::set<std::string> viewed;
+  std::cout << "FIRST(X): " << std::endl;
+  for (const auto &p : ps) {
+    auto &l = p.l;
+    auto &fs = firsts[l];
+    if (viewed.count(l)) {
+      continue;
+    } else {
+      viewed.insert(l);
+    }
+    std::cout << "FIRST(" + l + ")= ";
     for (const auto &f : fs) {
       std::cout << f << ' ';
     }
     std::cout << std::endl;
   }
+  std::cout << std::endl;
+  viewed.clear();
+
+  std::cout << "FOLLOW(X): " << std::endl;
+  for (const auto &p : ps) {
+    auto &l = p.l;
+    auto &fs = follows[l];
+    if (viewed.count(l)) {
+      continue;
+    } else {
+      viewed.insert(l);
+    }
+    std::cout << "FOLLOW(" << l << ")= ";
+    for (const auto &f : fs) {
+      std::cout << f << ' ';
+    }
+    std::cout << std::endl;
+  }
+  std::cout << std::endl;
+  viewed.clear();
+
+  auto print_selects = [&](const Production &p) {
+    auto &l = p.l;
+    auto &rs = p.r;
+    auto &ss = selects[p];
+    std::cout << "SELECT(" << p << ") <==== ";
+    for (const auto &f : ss) {
+      std::cout << f << ' ';
+    }
+    std::cout << std::endl;
+  };
+  std::cout << "SELECT(X): " << std::endl;
+  for (const auto &p : ps) {
+    print_selects(p);
+  }
+  std::cout << std::endl;
+
+  std::cout << "LL1 CHECK: " << std::endl;
+  for (auto iter = ps.begin(); iter != ps.end(); ++iter) {
+    auto &p = *iter;
+    auto &l = p.l;
+    auto &ss = selects[p];
+    if (viewed.count(l)) {
+      continue;
+    } else {
+      viewed.insert(l);
+    }
+
+    for (auto iter2 = std::next(iter); iter2 != ps.end(); ++iter2) {
+      auto &p2 = *iter2;
+      auto &l2 = p2.l;
+      auto &ss2 = selects[p2];
+      if (l2 == l) {
+        std::vector<std::string> iss;
+        std::set_intersection(ss.begin(), ss.end(), ss2.begin(), ss2.end(), std::back_inserter(iss));
+        if (!iss.empty()) {
+          std::cout << "LL1 CHECK FAILED: " << std::endl;
+          print_selects(p);
+          print_selects(p2);
+        }
+      }
+    }
+  }
+
+  // auto print_firsts = [&](std::ostream &os, const Production &p) {
+  //   for (const auto &t : firsts[p.l]) {
+  //     os << t << ' ';
+  //   }
+  //   return "";
+  // };
+  // auto print_follows = [&](std::ostream &os, const Production &p) {
+  //   for (const auto &t : follows[p.l]) {
+  //     os << t << ' ';
+  //   }
+  //   return "";
+  // };
+  //
+  // std::ofstream ofs("FIRST-FOLLOW-SELECT.md");
+  // ofs << "|非终结符|FIRST|FOLLOW|\n";
+  // ofs << "|--------|-----|------|\n";
+  // for (auto &p : ps) {
+  //   ofs << "|" << p.l << "|" << print_firsts(ofs, p) << "|" << print_follows(ofs, p) << "|\n";
+  // }
   return 0;
 }
