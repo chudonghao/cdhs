@@ -5,9 +5,21 @@
 #ifndef INC_2022_2_1_86AE91761D984709AC156A1A6A633B2D_H
 #define INC_2022_2_1_86AE91761D984709AC156A1A6A633B2D_H
 
+#include <memory>
+
 namespace cdhs::ast {
 
-class S {};
+struct Primary;
+
+struct S {
+  enum Select {
+    SELECT_e,        //
+    SELECT_Primary_S //
+  } select{};
+
+  std::shared_ptr<Primary> Primary;
+  std::shared_ptr<S> S;
+};
 
 } // namespace cdhs::ast
 

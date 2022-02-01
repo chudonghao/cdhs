@@ -12,6 +12,18 @@ namespace cdhs::tok {
 enum TokenKind {
   unknown,          //
   comment,          //
+                    //
+  extern_,          // extern
+  if_,              // if
+  else_,            // else
+  for_,             // for
+  continue_,        // continue
+  break_,           // break
+  syntax,           // syntax
+  func,             // func
+  var,              // var
+  alias,            // alias
+                    //
   identifier,       // abc_123, etc.
   char_constant,    // 'c'
   numeric_constant, // 123, 0x123, 1.23, 1.23f, .123, .123E1, etc.
@@ -52,11 +64,12 @@ enum TokenKind {
   blank,            // space \t
   eol,              // end of line \r\n \r \n
   eof,              // end of file
-  tok_max = 1024,
+
+  tok_max,
 };
 
 std::string name(TokenKind kind);
 
-} // namespace cdhs
+} // namespace cdhs::tok
 
 #endif // CDHS_TOKENKINDS_H

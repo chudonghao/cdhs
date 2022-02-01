@@ -12,6 +12,26 @@ std::string name(cdhs::tok::TokenKind kind) {
     return "unknown";
   case comment:
     return "comment";
+  case extern_:
+    return "extern";
+  case if_:
+    return "if";
+  case else_:
+    return "else";
+  case for_:
+    return "for";
+  case continue_:
+    return "continue";
+  case break_:
+    return "break";
+  case syntax:
+    return "syntax";
+  case func:
+    return "func";
+  case var:
+    return "var";
+  case alias:
+    return "alias";
   case identifier:
     return "identifier";
   case char_constant:

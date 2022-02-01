@@ -22,6 +22,16 @@ struct _lexer : lex::lexer<Lexer> {
     this->self.add(R"( |\t)", tok::blank);
     this->self.add(R"(\r\n|\r|\n|\n\r)", tok::eol);
 
+    this->self.add(R"(extern)", tok::extern_);
+    this->self.add(R"(if)", tok::if_);
+    this->self.add(R"(else)", tok::else_);
+    this->self.add(R"(for)", tok::for_);
+    this->self.add(R"(continue)", tok::continue_);
+    this->self.add(R"(break)", tok::break_);
+    this->self.add(R"(syntax)", tok::syntax);
+    this->self.add(R"(func)", tok::func);
+    this->self.add(R"(var)", tok::var);
+    this->self.add(R"(alias)", tok::alias);
     this->self.add(R"([a-zA-Z_]\w+)", tok::identifier);
     this->self.add(R"(\'(\\.|.)\')", tok::char_constant);
     this->self.add(R"(\d*(\.\d*)?([eE]-?\d+)?)", tok::numeric_constant);
@@ -209,51 +219,16 @@ try_again:
   case tok::blank:
   case tok::eol:
     goto try_again;
-  case tok::identifier:
-  case tok::char_constant:
-  case tok::numeric_constant:
-  case tok::string_literal:
-  case tok::l_square:
-  case tok::r_square:
-  case tok::l_paren:
-  case tok::r_paren:
-  case tok::l_brace:
-  case tok::r_brace:
-  case tok::period:
-  case tok::amp:
-  case tok::ampamp:
-  case tok::star:
-  case tok::plus:
-  case tok::plusplus:
-  case tok::minus:
-  case tok::arrow:
-  case tok::minusminus:
-  case tok::tilde:
-  case tok::exclaim:
-  case tok::exclaimequal:
-  case tok::slash:
-  case tok::percent:
-  case tok::less:
-  case tok::lessequal:
-  case tok::greater:
-  case tok::greaterequal:
-  case tok::caret:
-  case tok::pipe:
-  case tok::pipepipe:
-  case tok::question:
-  case tok::colon:
-  case tok::semi:
-  case tok::equal:
-  case tok::equalequal:
-  case tok::comma:
-    m_tokens.emplace_back(lexer.tokenSourceLocation(), lexer.tokenSource(), lexer.tokenKind());
-    break;
   case tok::eof:
     m_tokens.emplace_back(lexer.tokenSourceLocation(), tok::eof);
     break;
-  case tok::tok_max:
-  case tok::unknown:
-    throw CompileError(lexer.tokenSourceLocation());
+  default:
+    if (lexer.tokenKind() == tok::unknown || lexer.tokenKind() >= tok::tok_max) {
+      throw CompileError(lexer.tokenSourceLocation());
+    } else {
+      m_tokens.emplace_back(lexer.tokenSourceLocation(), lexer.tokenSource(), lexer.tokenKind());
+    }
+    break;
   }
 
   // auto is_space_or_return = [](int ch) { return std::isspace(ch) || ch == '\n' || ch == '\r'; };

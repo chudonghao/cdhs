@@ -8,9 +8,13 @@
 #include <memory>
 
 namespace cdhs {
+
 namespace ast {
-class S;
-}
+struct S;
+struct Primary;
+struct Sentence;
+} // namespace ast
+
 class Lexer;
 class Parser {
 public:
@@ -18,6 +22,8 @@ public:
 
 private:
   std::shared_ptr<ast::S> S();
+  std::shared_ptr<ast::Primary> Primary();
+  std::shared_ptr<ast::Sentence> Sentence();
 
 private:
   Lexer &lexer() { return *m_lexer; }
