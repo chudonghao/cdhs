@@ -1,0 +1,22 @@
+
+
+//////
+// syntax 0.1
+
+// extern O1 *Double = ...;
+// extern const I1 *Double = ...;
+// extern const I2 *Double = ...;
+// extern const I3 *Double = ...;
+// extern const I3 *Double = ...;
+//
+// extern func sin(double) double;
+
+O1 = 1;
+O1 = 2.;
+O1 = I1 + I2 * I3;
+O1 = I1 * (I2 + I3);
+O1 = I1 * sin(I2 + I3);
+O1 = I1 * sin(I1 + I2 * I3);
+O1 = O1 * I1;
+
+I1 = 1; // error
