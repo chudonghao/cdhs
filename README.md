@@ -39,47 +39,74 @@
 * comma: ,
 
 ### 语法成分
-* e （空）
-* S（开始符号）
-* Sentence（句子）
-* Expr（表达式）
-* DeclareType 声明类型
-* DeclareVar 声明变量
-* DeclareFunc 声明函数
-* DefineType 定义类型
-* DefineVar 变量变量
-* DefineFunc 定义函数
-* Id 标识符
+* e 空
+* TranslationUnitDecl 开始符号
+* Decl 声明/定义
+* TypedefDecl 别名声明
+* FunctionDecl 函数声明
+* Stmt 语句
+* CompoundStmt 语句块
+* DeclStmt 定义语句
+* IfStmt IF语句
+* ForStmt FOR语句
+* ValueStmt 可能包含值的语句
+* Expr 表达式
+* DeclRefExpr 变量引用
+* ParenExpr ()
+* MemberExpr 成员访问
+* ArraySubscriptExpr 数组成员访问
+* ImplicitCastExpr 隐式转换
+* CallExpr 函数调用
+* UnaryOperator 一元操作符
+* BinaryOperator 二元操作符
+* ConditionalOperator ?:操作符
+* IntegerLiteral 整型常量
+* FloatingLiteral 浮点型常量
+* StringLiteral 字符串常量
 
 ### 产生式
 
-Token -> Id | ConstNumber
+* TranslationUnitDecl ::= (Stmt ";") *
 
-* S -> e
-* S -> Primary S
+* \ Decl ::= TypedefDecl
+* \ Decl ::= FunctionDecl
 
-* Primary -> Sentence
+* \ FunctionDecl ::= "func" Id "(" ParamVarDecl * ")" ";" | CompoundStmt
 
-* Sentence -> Expr ;
-* Sentence -> if ( Expr ) { Sentences }
-* Sentence -> if ( Expr ) Sentence
-* Sentence -> for ( ; Expr ; Expr) { Sentences }
-* Sentence -> for ( ; Expr ; Expr) Sentence
+* CompoundStmt ::= "{" (Stmt ";") * "}"
 
-* Sentences -> e
-* Sentences -> Sentence Sentences
+* Stmt ::= IfStmt | ForStmt | ValueStmt
+* ValueStmt :: = DeclStmt | Expr
+
+* IfStmt ::= "if" "(" ValueStmt ")" CompoundStmt | e
+* ForStmt ::= "for" "(" ValueStmt | e ";" ValueStmt | e ";" ValueStmt | e ")" CompoundStmt | e
+* DeclStmt ::= "var" Id Type
+
+* \ Expr ::= IntegerLiteral
+* \ Expr ::= FloatingLiteral
+* \ Expr ::= StringLiteral
+* \ Expr ::= DeclRefExpr
+* \ Expr ::= ParenExpr
+* \ Expr ::= MemberExpr
+* \ Expr ::= ArraySubscriptExpr
+* \ Expr ::= ImplicitCastExpr
+* \ Expr ::= UnaryOperator
+* \ Expr ::= BinaryOperator
+* \ Expr ::= ConditionalOperator
 
 * Expr -> Term15
 
-* Term -> Id
-* Term -> ConstNumber 
-* Term -> Id ( Term15 )
+* Term -> Id <==== DeclRefExpr
+* Term -> IntegerLiteral
+* Term -> FloatingLiteral
+* Term -> StringLiteral
+* Term -> Id ( Term15 ) <==== CallExpr
 
 * Term1 -> Term
-* Term1 -> Term1.Id
-* Term1 -> Term1 -> Id
-* Term1 -> ( Term14 )
-* Term1 -> Term1 [ Term14 ]
+* Term1 -> Term1.Id <==== MemberExpr
+* Term1 -> Term1 -> Id <==== MemberExpr
+* Term1 -> ( Term14 ) <==== ParenExpr
+* Term1 -> Term1 [ Term14 ] <==== ArraySubscriptExpr
 
 * Term2 -> Term1
 * Term2 -> ! Term2
@@ -139,26 +166,42 @@ Token -> Id | ConstNumber
 
 ### 产生式（提取公共因子）
 
-* S -> e
-* S -> Primary S
+* TranslationUnitDecl ::= (Stmt ";") *
 
-* Primary -> Sentence
+* \ Decl ::= TypedefDecl
+* \ Decl ::= FunctionDecl
 
-* Sentence -> Expr ;
-* Sentence -> if ( Expr ) Sentence_1
-* Sentence -> for ( ; Expr ; Expr) Sentence_1
-* Sentence_1 -> { Sentences }
-* Sentence_1 -> Sentence
+* \ FunctionDecl ::= "func" Id "(" ParamVarDecl * ")" ";" | CompoundStmt
 
-* Sentences -> e
-* Sentences -> Sentence Sentences
+* CompoundStmt ::= "{" (Stmt ";") * "}"
+
+* Stmt ::= IfStmt | ForStmt | ValueStmt
+* ValueStmt :: = DeclStmt | Expr
+
+* IfStmt ::= "if" "(" ValueStmt ")" CompoundStmt | e
+* ForStmt ::= "for" "(" ValueStmt | e ";" ValueStmt | e ";" ValueStmt | e ")" CompoundStmt | e
+* DeclStmt ::= "var" Id Type
+
+* \ Expr ::= IntegerLiteral
+* \ Expr ::= FloatingLiteral
+* \ Expr ::= StringLiteral
+* \ Expr ::= DeclRefExpr
+* \ Expr ::= ParenExpr
+* \ Expr ::= MemberExpr
+* \ Expr ::= ArraySubscriptExpr
+* \ Expr ::= ImplicitCastExpr
+* \ Expr ::= UnaryOperator
+* \ Expr ::= BinaryOperator
+* \ Expr ::= ConditionalOperator
 
 * Expr -> Term15
 
 * Term -> Id Term_1
-* Term -> ConstNumber
-* Term_1 -> e
+* Term -> IntegerLiteral
+* Term -> FloatingLiteral
+* Term -> StringLiteral
 * Term_1 -> ( Term15 )
+* Term_1 -> e
 
 * Term1 -> Term
 * Term1 -> Term1 Term1_1
@@ -205,59 +248,67 @@ Token -> Id | ConstNumber
 * Term7_1 -> != Term7
 
 * Term8 -> Term7
-* Term8 -> Term8 Term8_1
-* Term8_1 -> & Term8
+* Term8 -> Term8 & Term8
 
 * Term9 -> Term8
-* Term9 -> Term9 Term9_1
-* Term9_1 -> ^ Term9
+* Term9 -> Term9 ^ Term9
 
 * Term10 -> Term9
-* Term10 -> Term10 Term10_1
-* Term10_1 -> | Term10
+* Term10 -> Term10 | Term10
 
 * Term11 -> Term10
-* Term11 -> Term11 Term11_1
-* Term11_1 -> && Term11
+* Term11 -> Term11 && Term11
 
 * Term12 -> Term11
-* Term12 -> Term12 Term12_1
-* Term12_1 -> || Term12
+* Term12 -> Term12 || Term12
 
 * Term13 -> Term12
-* Term13 -> Term13 Term13_1
-* Term13_1 -> ? Term13 : Term13
+* Term13 -> Term13 ? Term13 : Term13
 
 * Term14 -> Term13
-* Term14 -> Term14 Term14_1
-* Term14_1 -> = Term14
+* Term14 -> Term14 = Term14
 
 * Term15 -> Term14
-* Term15 -> Term15 Term15_1
-* Term15_1 -> , Term15
+* Term15 -> Term15 , Term15
 
 ### 产生式（消除左递归）
 
-* S -> e
-* S -> Primary S
+* TranslationUnitDecl ::= (Stmt ";") *
 
-* Primary -> Sentence
+* \ Decl ::= TypedefDecl
+* \ Decl ::= FunctionDecl
 
-* Sentence -> Expr ;
-* Sentence -> if ( Expr ) Sentence_1
-* Sentence -> for ( ; Expr ; Expr) Sentence_1
-* Sentence_1 -> { Sentences }
-* Sentence_1 -> Sentence
+* \ FunctionDecl ::= "func" Id "(" ParamVarDecl * ")" ";" | CompoundStmt
 
-* Sentences -> e
-* Sentences -> Sentence Sentences
+* CompoundStmt ::= "{" (Stmt ";") * "}"
+
+* Stmt ::= IfStmt | ForStmt | ValueStmt
+* ValueStmt :: = DeclStmt | Expr
+
+* IfStmt ::= "if" "(" ValueStmt ")" CompoundStmt | e
+* ForStmt ::= "for" "(" ValueStmt | e ";" ValueStmt | e ";" ValueStmt | e ")" CompoundStmt | e
+* DeclStmt ::= "var" Id Type
+
+* \ Expr ::= IntegerLiteral
+* \ Expr ::= FloatingLiteral
+* \ Expr ::= StringLiteral
+* \ Expr ::= DeclRefExpr
+* \ Expr ::= ParenExpr
+* \ Expr ::= MemberExpr
+* \ Expr ::= ArraySubscriptExpr
+* \ Expr ::= ImplicitCastExpr
+* \ Expr ::= UnaryOperator
+* \ Expr ::= BinaryOperator
+* \ Expr ::= ConditionalOperator
 
 * Expr -> Term15
 
 * Term -> Id Term_1
-* Term -> ConstNumber
-* Term_1 -> e
+* Term -> IntegerLiteral
+* Term -> FloatingLiteral
+* Term -> StringLiteral
 * Term_1 -> ( Term15 )
+* Term_1 -> e
 
 * Term1_b -> Term
 * Term1_b -> ( Term14 )

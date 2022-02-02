@@ -38,21 +38,13 @@ std::ostream &operator<<(std::ostream &os, const Production &p) {
 }
 
 std::vector<Production> ps = {
-    {"S", {"e"}},
-    {"S", {"Primary", "S"}},
-    {"Primary", {"Sentence"}},
-    {"Sentence", {"Expr", ";"}},
-    {"Sentence", {"if", "(", "Expr", ")", "Sentence_1"}},
-    {"Sentence", {"for", "(", ";", "Expr", ";", "Expr)", "Sentence_1"}},
-    {"Sentence_1", {"{", "Sentences", "}"}},
-    {"Sentence_1", {"Sentence"}},
-    {"Sentences", {"e"}},
-    {"Sentences", {"Sentence", "Sentences"}},
     {"Expr", {"Term15"}},
     {"Term", {"Id", "Term_1"}},
-    {"Term", {"ConstNumber"}},
-    {"Term_1", {"e"}},
+    {"Term", {"IntegerLiteral"}},
+    {"Term", {"FloatingLiteral"}},
+    {"Term", {"StringLiteral"}},
     {"Term_1", {"(", "Term15", ")"}},
+    {"Term_1", {"e"}},
     {"Term1_b", {"Term"}},
     {"Term1_b", {"(", "Term14", ")"}},
     {"Term1_a", {"Term1_1"}},
@@ -145,7 +137,10 @@ std::vector<Production> ps = {
     {"Term15_A1", {"e"}},
 };
 
-bool is_terminal(const std::string &x) { return !std::isalpha(x[0]) || !std::isupper(x[0]) || x == "Id" || x == "ConstNumber"; }
+bool is_terminal(const std::string &x) {
+  std::set<std::string> terminals = {"Id", "IntegerLiteral", "FloatingLiteral", "StringLiteral"};
+  return !std::isalpha(x[0]) || !std::isupper(x[0]) || terminals.find(x) != terminals.end();
+}
 
 int main() {
   std::map<std::string, std::set<std::string>> firsts;
@@ -190,8 +185,10 @@ int main() {
   count = 0;
   last_count = -1;
 
-  // 开始符号默认包含结束符号$
-  follows["S"].insert("$");
+  // 手动添加Expr的FOLLOW集
+  // follows["Expr"].insert(); // 继承 Term15 empty
+  follows["Expr"].insert(")"); // 继承 ValueStmt
+  follows["Expr"].insert(";"); // 继承 Stmt
 
   for (; count != last_count;) {
 
