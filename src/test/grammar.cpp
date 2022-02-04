@@ -20,20 +20,28 @@ struct Production {
   std::vector<std::string> r;
   Production(std::string l, std::vector<std::string> r) : l(std::move(l)), r(std::move(r)) {}
 
+  // lr 文法需要
   size_t index{};
+  std::string lookahead;
 };
 
 bool operator<(const Production &l, const Production &r) {
   if (l.l < r.l) {
     return true;
   } else if (l.l == r.l) {
-    return l.r < r.r;
+    if (l.r < r.r) {
+      return true;
+    } else if (l.r == r.r) {
+      return l.lookahead < r.lookahead;
+    } else {
+      return false;
+    }
   } else {
     return false;
   }
 }
 
-bool operator==(const Production &l, const Production &r) { return l.l == r.l && l.r == r.r; }
+bool operator==(const Production &l, const Production &r) { return l.l == r.l && l.r == r.r && l.lookahead == r.lookahead; }
 
 bool operator!=(const Production &l, const Production &r) { return !(l == r); }
 
@@ -59,7 +67,6 @@ struct Grammar {
   std::string S;
 
   std::string EMPTY_DEF;
-  std::set<std::string> S_follows;
 };
 
 struct GrammarAnalyze {
@@ -71,9 +78,11 @@ struct GrammarAnalyze {
 
   // lr文法
   ProductionVec lr_items;
-  std::vector<ProductionVec> C;
+  std::vector<ProductionVec> lr0_C;
+  std::vector<ProductionVec> lr1_C;
   LR0ParseTable lr0_parse_table;
   LR0ParseTable slr_parse_table;
+  LR0ParseTable lr1_parse_table;
 };
 
 Grammar create(ProductionVec P, std::string S, std::set<std::string> S_follows, std::string EMPTY_DEF,
@@ -81,7 +90,6 @@ Grammar create(ProductionVec P, std::string S, std::set<std::string> S_follows, 
   Grammar g;
   g.P = std::move(P);
   g.S = std::move(S);
-  g.S_follows = std::move(S_follows);
   g.EMPTY_DEF = std::move(EMPTY_DEF);
 
   auto all_V_T = [&](const Grammar &g) {
@@ -111,8 +119,8 @@ Grammar create(ProductionVec P, std::string S, std::set<std::string> S_follows, 
 
   g.V_N = all_V_N(g);
   g.V_T = all_V_T(g);
-  // 视为特殊的终结符
-  g.V_T.insert(g.S_follows.begin(), g.S_follows.end());
+  // $视为特殊的终结符
+  g.V_T.insert("$");
 
   for (int i = 0; i < g.P.size(); ++i) {
     g.P[i].index = i;
@@ -128,38 +136,65 @@ std::set<std::string> all_grammar_symbol(const Grammar &g) {
   return std::move(res);
 }
 
+std::set<std::string> FIRST(const Grammar &g, const FIRSTS_Type &firsts, const std::vector<std::string> &ss) {
+  std::set<std::string> fs;
+
+  // std::cout << "!!!!!!!!!!! ";
+  // for (const auto &item : ss) {
+  //   std::cout << item << " ";
+  // }
+  //
+  // std::cout << ">>>> ";
+
+  size_t empty_count = 0;
+  for (const auto &s : ss) {
+    // 如果元素是终结符，则将其加入到first集中，跳出循环
+    // 如果是非终结符，则该非终结符的所有first集的所有内容加入first集中
+    if (g.V_T.count(s)) {
+      fs.insert(s);
+      break;
+    } else {
+      if (firsts.count(s)) {
+        auto &fs2 = firsts.at(s);
+        fs.insert(fs2.begin(), fs2.end());
+        if (fs2.count(g.EMPTY_DEF)) {
+          ++empty_count;
+          continue;
+        }
+      }
+      // 未获取到非终结符的FIRST集，或集合不包含空，跳出循环
+      break;
+    }
+  }
+  if (empty_count == ss.size()) {
+    // 所有符号都能推导出空，则将空加入到FIRST集中
+    fs.insert(g.EMPTY_DEF);
+  }
+
+  // for (const auto &item : fs) {
+  //   std::cout << item << " ";
+  // }
+  // std::cout << std::endl;
+
+  return std::move(fs);
+}
+
 FIRSTS_Type FIRSTS(const Grammar &g) {
   FIRSTS_Type firsts;
   /// 计算所有FIRST集
   size_t count = 0;
   size_t last_count = -1;
   for (; count != last_count;) {
-
     // 重试
     last_count = count;
     count = 0;
-
     // 更新所有first集合
     for (auto &item : g.P) {
       auto &l = item.l;
       auto &rs = item.r;
       auto &fs = firsts[l];
-
-      // 如果为空，则将空加入到FIRST集
-      if (rs.empty()) {
-        fs.insert(g.EMPTY_DEF);
-      }
-      for (const auto &r : rs) {
-        // 如果元素是终结符，则将其加入到first集中，跳出循环
-        // 如果是非终结符，则该非终结符的所有first集的所有内容加入first集中
-        if (g.V_T.count(r)) {
-          fs.insert(r);
-        } else {
-          auto &fs2 = firsts[r];
-          fs.insert(fs2.begin(), fs2.end());
-          break;
-        }
-      }
+      auto nfs = FIRST(g, firsts, rs);
+      fs.insert(nfs.begin(), nfs.end());
       count += fs.size();
     }
   }
@@ -173,7 +208,7 @@ FOLLOWS_Type FOLLOWS(const Grammar &g, const FOLLOWS_Type &firsts) {
   size_t last_count = -1;
 
   // 手动添加S的FOLLOW集
-  follows[g.S] = g.S_follows;
+  follows[g.S] = {"$"};
 
   for (; count != last_count;) {
 
@@ -273,7 +308,7 @@ SELECTS_Type SELECTS(const Grammar &g, const FIRSTS_Type &firsts, const FOLLOWS_
 
 namespace lr {
 
-bool is_move_in_state(const Production &item) { return !item.r.empty() && item.r[0] == LR_PLACE_HOLDER; };
+bool is_move_in_state(const Production &item) { return !item.r.empty() && item.r[0] == LR_PLACE_HOLDER; }
 
 bool is_next_symbol_non_terminal(const Grammar &g, const Production &item) {
   for (int i = 0; i < item.r.size() - 1; ++i) {
@@ -282,7 +317,7 @@ bool is_next_symbol_non_terminal(const Grammar &g, const Production &item) {
     }
   }
   return false;
-};
+}
 
 bool is_next_symbol_X(const Production &item, const std::string &X) {
   if (item.r.size() < 2) {
@@ -294,7 +329,7 @@ bool is_next_symbol_X(const Production &item, const std::string &X) {
     }
   }
   return false;
-};
+}
 
 Production next_state(Production p) {
   for (int i = 0; i < p.r.size() - 1; ++i) {
@@ -304,7 +339,7 @@ Production next_state(Production p) {
     }
   }
   return std::move(p);
-};
+}
 
 std::string next_symbol(const Production &item) {
   for (int i = 0; i < item.r.size() - 1; ++i) {
@@ -313,7 +348,24 @@ std::string next_symbol(const Production &item) {
     }
   }
   return {};
-};
+}
+
+std::vector<std::string> next_symbols(const Production &item) {
+  auto iter = std::find(item.r.begin(), item.r.end(), LR_PLACE_HOLDER);
+  std::vector<std::string> res;
+  if (iter != item.r.end()) {
+    res.assign(std::next(iter), item.r.end());
+  }
+  return std::move(res);
+}
+
+std::vector<std::string> next_symbols(const Production &item, const std::string &lookahead) {
+  std::vector<std::string> res = next_symbols(item);
+  if (!lookahead.empty()) {
+    res.push_back(lookahead);
+  }
+  return std::move(res);
+}
 
 Production remove_lr_place_holder(Production p) {
   auto iter = std::find(p.r.begin(), p.r.end(), LR_PLACE_HOLDER);
@@ -338,19 +390,22 @@ ProductionVec LR_ITEMS(const Grammar &g) {
   return std::move(items);
 }
 
-ProductionVec CLOSURE(const Grammar &g, ProductionVecConstRef lr_items, ProductionVecConstRef I) {
-  ProductionVec J = I;
+ProductionVec CLOSURE(const Grammar &g, ProductionVecConstRef lr_items, ProductionVec I) {
   size_t last_count = -1;
-  for (; J.size() != last_count;) {
-    last_count = J.size();
-    for (int i = 0; i < J.size(); ++i) {
-      auto &p = J[i];
-      if (is_next_symbol_non_terminal(g, p)) {
-        auto nnt = next_symbol(p);
+  // 重复直到没有新的状态
+  for (; I.size() != last_count;) {
+    last_count = I.size();
+    // 遍历每个状态
+    for (int i = 0; i < I.size(); ++i) {
+      // 遍历每个下一个符号是非终结符的项目
+      if (is_next_symbol_non_terminal(g, I[i])) {
+        auto nnt = next_symbol(I[i]);
+        // 遍历每个等价项目
         for (const auto &p2 : lr_items) {
+          auto &p = I[i];
           if (nnt == p2.l && is_move_in_state(p2)) {
-            if (std::find(J.begin(), J.end(), p2) == J.end()) {
-              J.push_back(p2);
+            if (std::find(I.begin(), I.end(), p2) == I.end()) {
+              I.push_back(p2);
             }
           }
         }
@@ -358,7 +413,7 @@ ProductionVec CLOSURE(const Grammar &g, ProductionVecConstRef lr_items, Producti
     }
   }
 
-  return std::move(J);
+  return std::move(I);
 }
 
 ProductionVec GOTO(const Grammar &g, ProductionVecConstRef lr_items, ProductionVecConstRef I, const std::string &X) {
@@ -371,14 +426,12 @@ ProductionVec GOTO(const Grammar &g, ProductionVecConstRef lr_items, ProductionV
   return CLOSURE(g, lr_items, J);
 }
 
-/// 求规范LR0项集簇
-std::vector<ProductionVec> CANONICAL_LR0_COLLECTION(const Grammar &g, ProductionVec lr_items) {
-  Production lr_item_S_move_in = {"S'", {LR_PLACE_HOLDER, g.S}};
-  Production lr_item_S_reduce = {"S'", {g.S, LR_PLACE_HOLDER}};
-  lr_items.push_back(lr_item_S_move_in);
-  lr_items.push_back(lr_item_S_reduce);
+typedef std::function<ProductionVec(const Grammar &g, ProductionVecConstRef lr_items, ProductionVecConstRef I, const std::string &X)> GOTO_FUNC_Type;
 
-  std::vector<ProductionVec> C = {CLOSURE(g, lr_items, {lr_item_S_move_in})};
+/// 求规范LR项集簇
+std::vector<ProductionVec> CANONICAL_COLLECTION(const Grammar &g, ProductionVecConstRef lr_items, std::vector<ProductionVec> C_I0,
+                                                const GOTO_FUNC_Type &goto_func) {
+  auto &C = C_I0;
 
   auto ags = all_grammar_symbol(g);
   size_t last_count = 0;
@@ -388,7 +441,7 @@ std::vector<ProductionVec> CANONICAL_LR0_COLLECTION(const Grammar &g, Production
     for (auto i = 0; i < C.size(); ++i) {
       for (const auto &X : ags) {
         auto &I = C[i];
-        auto goto_ = GOTO(g, lr_items, I, X);
+        auto goto_ = goto_func(g, lr_items, I, X);
         if (!goto_.empty() && std::find(C.begin(), C.end(), goto_) == C.end()) {
           C.push_back(goto_);
         }
@@ -399,7 +452,18 @@ std::vector<ProductionVec> CANONICAL_LR0_COLLECTION(const Grammar &g, Production
   return std::move(C);
 }
 
-LR0ParseTable LR0_PARSE_TABLE(const Grammar &g, ProductionVecConstRef lr_items, const std::vector<ProductionVec> &C) {
+/// 求规范LR0项集簇
+std::vector<ProductionVec> CANONICAL_LR0_COLLECTION(const Grammar &g, ProductionVec lr_items) {
+  Production lr_item_S_move_in = {"S'", {LR_PLACE_HOLDER, g.S}};
+  Production lr_item_S_reduce = {"S'", {g.S, LR_PLACE_HOLDER}};
+  lr_items.push_back(lr_item_S_move_in);
+  lr_items.push_back(lr_item_S_reduce);
+  std::vector<ProductionVec> C = {CLOSURE(g, lr_items, {lr_item_S_move_in})};
+  return std::move(CANONICAL_COLLECTION(g, lr_items, C, &GOTO));
+}
+
+LR0ParseTable LR_PARSE_TABLE(const Grammar &g, ProductionVecConstRef lr_items, const std::vector<ProductionVec> &C,
+                             const std::function<void(LR0ParseTable &table, size_t state, const Production &item)> &reduce) {
   LR0ParseTable table;
   for (int i = 0; i < C.size(); ++i) {
     auto &I = C[i];
@@ -407,13 +471,9 @@ LR0ParseTable LR0_PARSE_TABLE(const Grammar &g, ProductionVecConstRef lr_items, 
       auto ns = next_symbol(item);
       if (ns.empty()) {
         if (item.l == "S'") {
-          for (const auto &f : g.S_follows) {
-            table[{i, f}].insert("acc");
-          }
+          table[{i, "$"}].insert("acc");
         } else {
-          for (const auto &t : g.V_T) {
-            table[{i, t}].insert("r" + std::to_string(item.index));
-          }
+          reduce(table, i, item);
         }
       } else {
         auto I_j = GOTO(g, lr_items, I, ns);
@@ -434,67 +494,126 @@ LR0ParseTable LR0_PARSE_TABLE(const Grammar &g, ProductionVecConstRef lr_items, 
   return std::move(table);
 }
 
+LR0ParseTable LR0_PARSE_TABLE(const Grammar &g, ProductionVecConstRef lr_items, const std::vector<ProductionVec> &C) {
+  return LR_PARSE_TABLE(g, lr_items, C, [&](auto &table, auto state, auto &item) {
+    for (const auto &t : g.V_T) {
+      table[{state, t}].insert("r" + std::to_string(item.index));
+    }
+  });
+}
+
 LR0ParseTable SLR_PARSE_TABLE(const Grammar &g, ProductionVecConstRef lr_items, const std::vector<ProductionVec> &C, const FOLLOWS_Type &follows) {
-  LR0ParseTable table;
-  for (int i = 0; i < C.size(); ++i) {
-    auto &I = C[i];
-    for (const auto &item : I) {
-      auto ns = next_symbol(item);
-      if (ns.empty()) {
-        if (item.l == "S'") {
-          for (const auto &f : g.S_follows) {
-            table[{i, f}].insert("acc");
-          }
-        } else {
-          if (follows.count(item.l)) {
-            auto &fs = follows.at(item.l);
-            for (const auto &t : fs) {
-              table[{i, t}].insert("r" + std::to_string(item.index));
+  return LR_PARSE_TABLE(g, lr_items, C, [&](auto &table, auto state, auto &item) {
+    if (follows.count(item.l)) {
+      auto &fs = follows.at(item.l);
+      for (const auto &t : fs) {
+        table[{state, t}].insert("r" + std::to_string(item.index));
+      }
+    }
+  });
+}
+
+LR0ParseTable LL1_PARSE_TABLE(const Grammar &g, ProductionVecConstRef lr_items, const std::vector<ProductionVec> &C) {
+  return LR_PARSE_TABLE(g, lr_items, C, [&](auto &table, auto state, auto &item) {
+    table[{state, item.lookahead}].insert("r" + std::to_string(item.index));
+  });
+}
+
+// LL1 CLOSURE
+ProductionVec CLOSURE(const Grammar &g, const FIRSTS_Type &firsts, ProductionVecConstRef lr_items, ProductionVec I) {
+  size_t last_count = -1;
+  // 重复直到没有新的状态
+  for (; I.size() != last_count;) {
+    last_count = I.size();
+    // 遍历每个状态
+    for (int i = 0; i < I.size(); ++i) {
+      // 遍历每个下一个符号是非终结符的项目
+      if (is_next_symbol_non_terminal(g, I[i])) {
+        auto nnt = next_symbol(I[i]);
+        auto nss = next_symbols(I[i], I[i].lookahead);
+        nss.erase(nss.begin()); // 去除串首非终结符
+
+        // 遍历每个等价项目
+        for (auto p2 : lr_items) {
+          auto &p = I[i];
+          if (nnt == p2.l && is_move_in_state(p2)) {
+            // 获取FIRST集合
+            auto fs = FIRST(g, firsts, nss);
+            // 遍历FIRST集合中的每个元素
+            for (const auto &f : fs) {
+              p2.lookahead = f;
+              // 加入I中
+              if (std::find(I.begin(), I.end(), p2) == I.end()) {
+                I.push_back(p2);
+              }
             }
-          }
-        }
-      } else {
-        auto I_j = GOTO(g, lr_items, I, ns);
-        auto iter = std::find(C.begin(), C.end(), I_j);
-        auto j = std::distance(C.begin(), iter);
-        if (iter != C.end()) {
-          if (g.V_T.count(ns)) {
-            table[{i, ns}].insert("s" + std::to_string(j));
-          } else if (g.V_N.count(ns)) {
-            table[{i, ns}].insert(std::to_string(j));
-          } else {
-            throw std::logic_error("??");
           }
         }
       }
     }
   }
-  return std::move(table);
+
+  return std::move(I);
+}
+
+// LL1 GOTO
+ProductionVec GOTO(const Grammar &g, const FIRSTS_Type &firsts, ProductionVecConstRef lr_items, ProductionVecConstRef I, const std::string &X) {
+  ProductionVec J;
+  for (const auto &item : I) {
+    if (is_next_symbol_X(item, X)) {
+      J.push_back(next_state(item));
+    }
+  }
+  return CLOSURE(g, firsts, lr_items, J);
+}
+
+/// 求规范LR1项集簇
+std::vector<ProductionVec> CANONICAL_LR1_COLLECTION(const Grammar &g, const FIRSTS_Type &firsts, ProductionVec lr_items) {
+  Production lr_item_S_move_in = {"S'", {LR_PLACE_HOLDER, g.S}};
+  Production lr_item_S_reduce = {"S'", {g.S, LR_PLACE_HOLDER}};
+  lr_items.push_back(lr_item_S_move_in);
+  lr_items.push_back(lr_item_S_reduce);
+  // 与LR0不同之处
+  lr_item_S_move_in.lookahead = "$";
+  std::vector<ProductionVec> C = {CLOSURE(g, firsts, lr_items, {lr_item_S_move_in})};
+  auto goto_func = [&](const Grammar &g, ProductionVecConstRef lr_items, ProductionVecConstRef I, const std::string &X) {
+    return GOTO(g, firsts, lr_items, I, X);
+  };
+  return std::move(CANONICAL_COLLECTION(g, lr_items, C, goto_func));
 }
 
 } // namespace lr
 
-GrammarAnalyze analyze(Grammar &g) {
+GrammarAnalyze analyze(Grammar &g, bool analyze_lr1 = false) {
   GrammarAnalyze ga;
   ga.firsts = FIRSTS(g);
   ga.follows = FOLLOWS(g, ga.firsts);
   ga.selects = SELECTS(g, ga.firsts, ga.follows);
   ga.lr_items = lr::LR_ITEMS(g);
-  ga.C = lr::CANONICAL_LR0_COLLECTION(g, ga.lr_items);
-  ga.lr0_parse_table = lr::LR0_PARSE_TABLE(g, ga.lr_items, ga.C);
-  ga.slr_parse_table = lr::SLR_PARSE_TABLE(g, ga.lr_items, ga.C, ga.follows);
+  ga.lr0_C = lr::CANONICAL_LR0_COLLECTION(g, ga.lr_items);
+  ga.lr0_parse_table = lr::LR0_PARSE_TABLE(g, ga.lr_items, ga.lr0_C);
+  ga.slr_parse_table = lr::SLR_PARSE_TABLE(g, ga.lr_items, ga.lr0_C, ga.follows);
+  if (analyze_lr1) {
+    ga.lr1_C = lr::CANONICAL_LR1_COLLECTION(g, ga.firsts, ga.lr_items);
+    ga.lr1_parse_table = lr::LL1_PARSE_TABLE(g, ga.lr_items, ga.lr1_C);
+  }
   return std::move(ga);
 }
+
+namespace {
 
 void print_Productions(ProductionVecConstRef ps) {
   std::cout << "Productions:" << std::endl;
   for (const auto &p : ps) {
-    std::cout << p << std::endl;
+    if (p.lookahead.empty()) {
+      std::cout << p << std::endl;
+    } else {
+      std::cout << p << " , " << p.lookahead << std::endl;
+    }
   }
   std::cout << std::endl;
 }
 
-// print FIRSTS
 void print_FIRSTS(const Grammar &g, const FIRSTS_Type &firsts) {
   std::set<std::string> viewed;
   std::cout << "FIRST(X): " << std::endl;
@@ -831,6 +950,8 @@ ProductionVec ps1 = {
     {"Term15_A1", {}},
 };
 
+} // namespace
+
 int main() {
   auto is_terminal = [](const std::string &x) {
     std::set<std::string> terminals = {"Id", "IntegerLiteral", "FloatingLiteral", "StringLiteral"};
@@ -849,16 +970,12 @@ int main() {
   }
   std::cout << std::endl;
   std::cout << "P: " << std::endl;
-  for (const auto &p : g.P) {
-    std::cout << "    " << p << std::endl;
+  for (int i = 0; i < g.P.size(); ++i) {
+    std::cout << "    " << i << " " << g.P[i] << std::endl;
   }
 
   std::cout << "S: " << g.S << std::endl;
-  std::cout << "FOLLOW(S): ";
-  for (const auto &f : g.S_follows) {
-    std::cout << f << ' ';
-  }
-  std::cout << std::endl;
+  std::cout << "FOLLOW(S): $" << std::endl;
   std::cout << "EMPTY_DEF: " << g.EMPTY_DEF << std::endl;
   std::cout << std::endl;
 
@@ -869,9 +986,9 @@ int main() {
   print_Productions(ga.lr_items);
   print_Productions(lr::CLOSURE(g, ga.lr_items, {ga.lr_items[0]}));
   print_LL1_CHECK(g, ga.selects);
-  print_LR_C(g, ga.C);
-  print_LR_ParseTable(g, ga.C, ga.lr0_parse_table);
-  print_LR_ParseTable(g, ga.C, ga.slr_parse_table);
+  print_LR_C(g, ga.lr0_C);
+  print_LR_ParseTable(g, ga.lr0_C, ga.lr0_parse_table);
+  print_LR_ParseTable(g, ga.lr0_C, ga.slr_parse_table);
 
   /// 打印结果
 
