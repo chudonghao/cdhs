@@ -30,9 +30,9 @@ private:
   std::unique_ptr<ast::Stmt> Stmt();
   std::unique_ptr<ast::IfStmt> IfStmt();
   std::unique_ptr<ast::ForStmt> ForStmt();
-  std::unique_ptr<ast::ValueStmt> ValueStmt();
-  std::unique_ptr<ast::DeclStmt> DeclStmt();
-  std::unique_ptr<ast::Expr> Expr();
+  std::unique_ptr<ast::ValueStmt> ValueStmt(bool eat_semi);
+  std::unique_ptr<ast::DeclStmt> DeclStmt(bool eat_semi);
+  std::unique_ptr<ast::Expr> Expr(bool eat_semi);
 
 private:
   Lexer &lexer() { return *m_lexer; }

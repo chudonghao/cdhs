@@ -60,24 +60,16 @@ std::unique_ptr<ast::Stmt> Parser::Stmt() {
     return ForStmt();
   }
 
-  auto ValueStmt = this->ValueStmt();
+  { return ValueStmt(true); }
 
-  lexer().lex(1);
-  if (lexer().getToken(0).kind != tok::semi) {
-    throw CompileError(lexer().getToken(0).source_location, "expect ;");
-  }
-
-  // eat ;
-  lexer().advance(1);
-
-  return ValueStmt;
+  throw CompileError(token.source_location);
 }
 
 std::unique_ptr<ast::IfStmt> Parser::IfStmt() { return std::unique_ptr<ast::IfStmt>(); }
 
 std::unique_ptr<ast::ForStmt> Parser::ForStmt() { return std::unique_ptr<ast::ForStmt>(); }
 
-std::unique_ptr<ast::ValueStmt> Parser::ValueStmt() {
+std::unique_ptr<ast::ValueStmt> Parser::ValueStmt(bool eat_semi) {
   // ValueStmt ::= DeclStmt | Expr
   // SELECT(ValueStmt :: = DeclStmt) = "var"
   // SELECT(ValueStmt ::= Expr) = FIRST(Expr)
@@ -87,7 +79,7 @@ std::unique_ptr<ast::ValueStmt> Parser::ValueStmt() {
   auto &token = lexer().getToken(0);
 
   if (token.kind == tok::var) {
-    return DeclStmt();
+    return DeclStmt(eat_semi);
   }
 
   switch (token.kind) {
@@ -103,14 +95,29 @@ std::unique_ptr<ast::ValueStmt> Parser::ValueStmt() {
   case tok::identifier:
   case tok::string_literal:
   case tok::tilde:
-    return Expr();
+    return Expr(eat_semi);
   default:
     throw CompileError(token.source_location, "expect ! & ( * ++ - -- FloatingLiteral Id IntegerLiteral StringLiteral ~");
   }
 }
 
-std::unique_ptr<ast::DeclStmt> Parser::DeclStmt() { return std::unique_ptr<ast::DeclStmt>(); }
+std::unique_ptr<ast::DeclStmt> Parser::DeclStmt(bool eat_semi) { return std::unique_ptr<ast::DeclStmt>(); }
 
-std::unique_ptr<ast::Expr> Parser::Expr() { return m_expr_parser.Expr(); }
+std::unique_ptr<ast::Expr> Parser::Expr(bool eat_semi) {
+  auto expr = m_expr_parser.Expr();
+
+  // eat ;
+  if (eat_semi) {
+    lexer().lex(1);
+    auto token = lexer().getToken(0);
+
+    if (token.kind != tok::semi) {
+      throw CompileError(token.source_location, "expect ;");
+    }
+
+    lexer().advance(1);
+  }
+  return expr;
+}
 
 } // namespace cdhs
