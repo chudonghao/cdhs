@@ -16,7 +16,9 @@
 
 namespace cdhs {
 
+/// 产生式
 struct Production {
+  // TODO 转换为int作为语法符号（在终结符多的时候，计算规范LR1项集簇太慢了）
   std::string l;
   std::vector<std::string> r;
   Production(std::string l, std::vector<std::string> r) : l(std::move(l)), r(std::move(r)) {}
