@@ -2,42 +2,66 @@
 
 ### token
 
-* identifier : abc_123, etc.
-* numeric_constant : 'c', 123, 0x123, 1.23, 1.23f, .123, .123E1, etc.
-* string_literal : "fff"
-* l_square: [
-* r_square: ]
-* l_paren: (
-* r_paren: )
-* l_brace: {
-* r_brace: }
-* period: .
-* amp: &
-* ampamp: &&
-* star: *
-* plus: +
-* plusplus: ++
-* minus: -
-* arrow: ->
-* minusminus: --
-* tilde: ~
-* exclaim: !
-* exclaimequal: !=
-* slash: /
-* percent: %
-* less: <
-* lessequal: <=
-* greater: >
-* greaterequal: >=
-* caret: ^
-* pipe: |
-* pipepipe: ||
-* question: ?
-* colon: :
-* semi: ;
-* equal: =
-* equalequal: ==
-* comma: ,
+```c++
+enum TokenKind {
+  unknown,          //
+  comment,          //
+                    //
+  extern_,          // extern
+  typedef_,         // typedef
+  if_,              // if
+  else_,            // else
+  for_,             // for
+  continue_,        // continue
+  break_,           // break
+  syntax,           // syntax
+  func,             // func
+  var,              // var
+                    //
+  identifier,       // abc_123, etc.
+  char_constant,    // 'c'
+  numeric_constant, // 123, 0x123, 1.23, 1.23f, .123, .123E1, etc.
+  string_literal,   // "fff"
+  l_square,         // [
+  r_square,         // ]
+  l_paren,          // (
+  r_paren,          // )
+  l_brace,          // {
+  r_brace,          // }
+  period,           // .
+  amp,              // &
+  ampamp,           // &&
+  star,             // *
+  plus,             // +
+  plusplus,         // ++
+  minus,            // -
+  arrow,            // ->
+  minusminus,       // --
+  tilde,            // ~
+  exclaim,          // !
+  exclaimequal,     // !=
+  slash,            // /
+  percent,          // %
+  less,             // <
+  lessequal,        // <=
+  greater,          // >
+  greaterequal,     // >=
+  caret,            // ^
+  pipe,             // |
+  pipepipe,         // ||
+  question,         // ?
+  colon,            // :
+  semi,             // ;
+  equal,            // =
+  equalequal,       // ==
+  comma,            // ,
+  blank,            // space \t
+  eol,              // end of line \r\n \r \n
+  eof,              // end of file
+
+  tok_max,
+};
+```
 
 ### 语法成分
 
@@ -116,15 +140,21 @@ Expr包含运算符分析（优先级、结合性），相对复杂，我们采�
 
 * Expr -> Term15
 
-* Term -> Id
-* Term -> IntegerLiteral
-* Term -> FloatingLiteral
-* Term -> StringLiteral
-* Term -> Id ( Term15 )
+* StringLiterals -> string_literal
+* StringLiterals -> StringLiterals string_literal
+* FuncArgs -> Term14
+* FuncArgs -> FuncArgs , Term14
+
+* Term -> identifier
+* Term -> char_constant
+* Term -> numeric_constant
+* Term -> StringLiterals
+* Term -> identifier ( FuncArgs )
+* Term -> identifier ( )
 
 * Term1 -> Term
-* Term1 -> Term1.Id
-* Term1 -> Term1 -> Id
+* Term1 -> Term1 . identifier
+* Term1 -> Term1 -> identifier
 * Term1 -> ( Term14 )
 * Term1 -> Term1 [ Term14 ]
 
