@@ -6,6 +6,7 @@ target_link_libraries(simple_test cdhs)
 target_compile_definitions(simple_test PRIVATE -DTEST_DATA_DIR="${TEST_DATA_DIR}")
 
 add_executable(grammar grammar.cpp)
+target_link_libraries(grammar cdhs)
 
 find_program(CLANG_CHECK clang-check PATHS $ENV{PATH})
 

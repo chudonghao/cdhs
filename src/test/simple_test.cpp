@@ -8,6 +8,7 @@
 #include <cdhs/CompileError.h>
 #include <cdhs/Lexer.h>
 #include <cdhs/Parser.h>
+#include <cdhs/ast/TranslationUnitDecl.h>
 
 using namespace cdhs;
 using namespace std;
@@ -46,7 +47,7 @@ int main() {
 
     for (int i = 0; i < l.getTokenCount(); ++i) {
       auto &token = l.getToken(i);
-      std::cout << tok::name(token.kind) << "@" << token.source_location << " " << token.source << std::endl;
+      std::cout << tok::to_kind_name(token.kind) << "@" << token.source_location << " " << token.source << std::endl;
     }
   }
 
@@ -67,9 +68,10 @@ int main() {
     l.reset(&source);
     Parser p;
     try {
-      auto S = p.parse(l);
+      auto TranslationUnitDecl = p.parse(l);
     } catch (CompileError &e) {
       cerr << e.what() << endl;
+      return -1;
     }
   }
 
