@@ -14,6 +14,7 @@ enum TokenKind {
   comment,          //
                     //
   extern_,          // extern
+  typedef_,         // typedef
   if_,              // if
   else_,            // else
   for_,             // for
@@ -22,7 +23,6 @@ enum TokenKind {
   syntax,           // syntax
   func,             // func
   var,              // var
-  alias,            // alias
                     //
   identifier,       // abc_123, etc.
   char_constant,    // 'c'
@@ -68,7 +68,9 @@ enum TokenKind {
   tok_max,
 };
 
-std::string name(TokenKind kind);
+std::string to_kind_name(TokenKind kind);
+
+TokenKind from_kind_name(const std::string &name);
 
 } // namespace cdhs::tok
 

@@ -5,30 +5,41 @@
 #ifndef CDHS_PARSER_H
 #define CDHS_PARSER_H
 
+#include "ExprParser.h"
 #include <memory>
 
 namespace cdhs {
 
 namespace ast {
-struct S;
-struct Primary;
-struct Sentence;
+struct TranslationUnitDecl;
+struct Stmt;
+struct IfStmt;
+struct ForStmt;
+struct DeclStmt;
+struct ValueStmt;
+struct Expr;
 } // namespace ast
 
 class Lexer;
 class Parser {
 public:
-  std::shared_ptr<ast::S> parse(Lexer &lexer);
+  std::unique_ptr<ast::TranslationUnitDecl> parse(Lexer &lexer);
 
 private:
-  std::shared_ptr<ast::S> S();
-  std::shared_ptr<ast::Primary> Primary();
-  std::shared_ptr<ast::Sentence> Sentence();
+  std::unique_ptr<ast::TranslationUnitDecl> TranslationUnitDecl();
+  std::unique_ptr<ast::Stmt> Stmt();
+  std::unique_ptr<ast::IfStmt> IfStmt();
+  std::unique_ptr<ast::ForStmt> ForStmt();
+  std::unique_ptr<ast::ValueStmt> ValueStmt();
+  std::unique_ptr<ast::DeclStmt> DeclStmt();
+  std::unique_ptr<ast::Expr> Expr();
 
 private:
   Lexer &lexer() { return *m_lexer; }
 
   Lexer *m_lexer{};
+
+  ExprParser m_expr_parser;
 };
 
 } // namespace cdhs

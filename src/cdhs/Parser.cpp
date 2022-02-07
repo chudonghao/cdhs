@@ -3,35 +3,94 @@
 //
 
 #include "Parser.h"
+
 #include <iostream>
 
 #include "CompileError.h"
+#include "ExprParser.h"
 #include "Lexer.h"
-#include "ast/Primary.h"
-#include "ast/S.h"
-#include "ast/Sentence.h"
+#include "ast/DeclStmt.h"
+#include "ast/Expr.h"
+#include "ast/ForStmt.h"
+#include "ast/IfStmt.h"
+#include "ast/TranslationUnitDecl.h"
+#include "ast/ValueStmt.h"
 
 namespace cdhs {
 
-std::shared_ptr<ast::S> Parser::parse(Lexer &lexer) {
+std::unique_ptr<ast::TranslationUnitDecl> Parser::parse(Lexer &lexer) {
   m_lexer = &lexer;
-  return S();
+  m_expr_parser.m_lexer = m_lexer;
+  return TranslationUnitDecl();
 }
 
-std::shared_ptr<ast::S> Parser::S() {
-  /// SELECT(S -> e)         <==== $
-  /// SELECT(S -> Primary S) <==== ! & ( * ++ - -- ConstNumber Id for if ~
+std::unique_ptr<ast::TranslationUnitDecl> Parser::TranslationUnitDecl() {
+  // TranslationUnitDecl ::= (Stmt ";") *
+  auto TranslationUnitDecl = std::make_unique<ast::TranslationUnitDecl>();
 
-  auto S = std::make_shared<ast::S>();
+  for (;;) {
+    lexer().lex(1);
+    auto &token = lexer().getToken(0);
+
+    // $
+    if (token.kind == tok::eof) {
+      return TranslationUnitDecl;
+    }
+
+    // any kind
+    auto Stmt = this->Stmt();
+    TranslationUnitDecl->Stmts.emplace_back(std::move(Stmt));
+  }
+}
+
+std::unique_ptr<ast::Stmt> Parser::Stmt() {
+  // Stmt ::= IfStmt | ForStmt | ValueStmt
+  // TODO 还没有精确确定各个SELECT集
 
   lexer().lex(1);
   auto &token = lexer().getToken(0);
 
-  switch (token.kind) {
-  case tok::eof: {
-    S->select = ast::S::SELECT_e;
-    break;
+  if (token.kind == tok::if_) {
+    throw CompileError("not support if yet");
+    return IfStmt();
   }
+
+  if (token.kind == tok::for_) {
+    throw CompileError("not support for yet");
+    return ForStmt();
+  }
+
+  auto ValueStmt = this->ValueStmt();
+
+  lexer().lex(1);
+  if (lexer().getToken(0).kind != tok::semi) {
+    throw CompileError(lexer().getToken(0).source_location, "expect ;");
+  }
+
+  // eat ;
+  lexer().advance(1);
+
+  return ValueStmt;
+}
+
+std::unique_ptr<ast::IfStmt> Parser::IfStmt() { return std::unique_ptr<ast::IfStmt>(); }
+
+std::unique_ptr<ast::ForStmt> Parser::ForStmt() { return std::unique_ptr<ast::ForStmt>(); }
+
+std::unique_ptr<ast::ValueStmt> Parser::ValueStmt() {
+  // ValueStmt ::= DeclStmt | Expr
+  // SELECT(ValueStmt :: = DeclStmt) = "var"
+  // SELECT(ValueStmt ::= Expr) = FIRST(Expr)
+  //     ! & ( * ++ - -- FloatingLiteral Id IntegerLiteral StringLiteral ~
+
+  lexer().lex(1);
+  auto &token = lexer().getToken(0);
+
+  if (token.kind == tok::var) {
+    return DeclStmt();
+  }
+
+  switch (token.kind) {
   case tok::exclaim:
   case tok::amp:
   case tok::l_paren:
@@ -42,62 +101,16 @@ std::shared_ptr<ast::S> Parser::S() {
   case tok::numeric_constant:
   case tok::char_constant:
   case tok::identifier:
-  case tok::for_:
-  case tok::if_:
-  case tok::tilde: {
-    S->select = ast::S::SELECT_Primary_S;
-    S->Primary = this->Primary();
-    S->S = this->S();
-    break;
-  }
+  case tok::string_literal:
+  case tok::tilde:
+    return Expr();
   default:
-    throw CompileError(token.source_location);
+    throw CompileError(token.source_location, "expect ! & ( * ++ - -- FloatingLiteral Id IntegerLiteral StringLiteral ~");
   }
-
-  return S;
 }
 
-std::shared_ptr<ast::Primary> Parser::Primary() {
-  /// SELECT(Primary -> Sentence) <==== ! & ( * ++ - -- ConstNumber Id for if ~
+std::unique_ptr<ast::DeclStmt> Parser::DeclStmt() { return std::unique_ptr<ast::DeclStmt>(); }
 
-  auto Primary = std::make_shared<ast::Primary>();
-  Primary->Sentence = this->Sentence();
-  return Primary;
-}
-
-std::shared_ptr<ast::Sentence> Parser::Sentence() {
-  /// SELECT(Sentence -> Expr ;)                          <==== ! & ( * ++ - -- ConstNumber Id ~
-  /// SELECT(Sentence -> if ( Expr ) Sentence_1)          <==== if
-  /// SELECT(Sentence -> for ( ; Expr ; Expr) Sentence_1) <==== for
-
-  auto Sentence = std::make_shared<ast::Sentence>();
-
-  lexer().lex(1);
-  auto &token = lexer().getToken(0);
-
-  switch (token.kind) {
-  case tok::exclaim:
-  case tok::amp:
-  case tok::l_paren:
-  case tok::star:
-  case tok::plusplus:
-  case tok::minus:
-  case tok::minusminus:
-  case tok::numeric_constant:
-  case tok::char_constant:
-  case tok::identifier:
-  case tok::tilde: {
-    break;
-  }
-  case tok::for_:
-    break;
-  case tok::if_:
-    break;
-  default:
-    throw CompileError(token.source_location);
-  }
-
-  return Sentence;
-}
+std::unique_ptr<ast::Expr> Parser::Expr() { return m_expr_parser.Expr(); }
 
 } // namespace cdhs

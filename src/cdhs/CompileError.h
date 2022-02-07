@@ -14,6 +14,8 @@ namespace cdhs {
 class CompileError : public std::runtime_error {
 public:
   explicit CompileError(SourceLocation sl);
+  explicit CompileError(SourceLocation sl, const std::string &what);
+  explicit CompileError(const std::string &what);
 
   // TODO more info
   // CompileError();

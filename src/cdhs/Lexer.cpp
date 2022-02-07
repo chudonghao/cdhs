@@ -31,7 +31,7 @@ struct _lexer : lex::lexer<Lexer> {
     this->self.add(R"(syntax)", tok::syntax);
     this->self.add(R"(func)", tok::func);
     this->self.add(R"(var)", tok::var);
-    this->self.add(R"(alias)", tok::alias);
+    this->self.add(R"(typedef)", tok::typedef_);
     this->self.add(R"([a-zA-Z_]\w+)", tok::identifier);
     this->self.add(R"(\'(\\.|.)\')", tok::char_constant);
     this->self.add(R"(\d*(\.\d*)?([eE]-?\d+)?)", tok::numeric_constant);
