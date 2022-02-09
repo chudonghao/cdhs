@@ -5,6 +5,7 @@
 #include <fstream>
 #include <iostream>
 
+#include <cdhs/AstPrinter.h>
 #include <cdhs/CompileError.h>
 #include <cdhs/Lexer.h>
 #include <cdhs/Parser.h>
@@ -69,6 +70,8 @@ int main() {
     Parser p;
     try {
       auto TranslationUnitDecl = p.parse(l);
+      AstPrinter printer;
+      printer.print(*TranslationUnitDecl);
     } catch (CompileError &e) {
       cerr << e.what() << endl;
       return -1;

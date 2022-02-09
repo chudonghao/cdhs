@@ -18,5 +18,7 @@ O1 = I1 * (I2 + I3);
 O1 = I1 * sin(I2 + I3);
 O1 = I1 * sin(I1 + I2 * I3);
 O1 = O1 * I1;
+O1 = O1 * foo(I1, I2, I3);
+O1 = O1 * foo();
 
 I1 = 1; // error
